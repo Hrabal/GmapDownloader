@@ -4,7 +4,20 @@ import urllib
 from PIL import Image
 import StringIO
 from math import pi, log, tan, atan, exp, ceil
-import datetime
+from operator import sub, div
+
+
+def factors(n):
+    result = set()
+    for i in range(1, int(n ** 0.5) + 1):
+        div, mod = divmod(n, i)
+        if mod == 0:
+            result |= {i, div}
+    return result
+
+
+def closest(number, li):
+    return min(li, key=lambda x: abs(x-number))
 
 
 class WorldMap(object):
@@ -16,72 +29,85 @@ class WorldMap(object):
 
     apikey = 'AIzaSyAoUzwHreNPC6pjDGqiHdF25d2q4QwV7M0'
 
-    def __init__(self):
+    max_delta = 45
+
+    def __init__(self, topleft, bottomright, name, params, zoom=6):
         super(WorldMap, self).__init__()
-        self.params = [('zoom', '6'),
-                       ('maptype', 'terrain'),
-                       ('style', 'element:labels|visibility:off'),
-                       ('style', 'feature:administrative.country|element:labels|visibility:on'),
-                       ('style', 'element:geometry.stroke|visibility:off'),
-                       ('style', 'feature:landscape|element:geometry|saturation:-100'),
-                       ('style', 'feature:water|saturation:-100|invert_lightness:true'),
-                       ('key', self.apikey)]
-        self.zoom = 6
-        self.zones = [('74, -180', '0, -120'),
-                      ('74, -120', '0, -70'),
-                      ('74, -70', '0, -20'),
-                      ('74, -20', '0, 30'),
-                      ('74, 30', '0, 80'),
-                      ('74, 80', '0, 130'),
-                      ('74, 130', '0, 180'),
-                      ('0, -180', '60, -120'),
-                      ('0, -120', '60, -70'),
-                      ('0, -70', '60, -20'),
-                      ('0, -20', '60, 30'),
-                      ('0, 30', '60, 80'),
-                      ('0, 80', '60, 130'),
-                      ('0, 130', '60, 180')]
+        self.topleft = topleft
+        self.bottomright = bottomright
+        self.name = name
+        self.params = [('zoom', str(zoom)), ('key', self.apikey)] + params
+        print self.params
+        self.zoom = zoom
+        bigzone_delta = tuple(map(abs, map(sub, bottomright, topleft)))
+        if min(bigzone_delta) > self.max_delta:
+            zone_sizes = tuple((closest(self.max_delta, facts) for facts in map(factors, bigzone_delta)))
+            self.zone_n = map(div, bigzone_delta, zone_sizes)
+            x_steps = [(zone_sizes[1] * z) + topleft[1] for z in range(0, self.zone_n[1]+1)]
+            y_steps = [(zone_sizes[0] * z) + bottomright[0] for z in range(0, self.zone_n[0]+1)]
+            self.zones = [[((y, x), (y-zone_sizes[0], x+zone_sizes[1])) for x in x_steps[:-1]] for y in reversed(y_steps[1:])]
+        else:
+            self.zones = [(topleft, bottomright)]
         self.scale = 2
 
     def get(self):
+        print 'Starting image download'
         zonecount = 0
-        start = datetime.datetime.now()
-        for zone in self.zones:
-            zonecount += 1
-            print 'Processing Zone %d - from %s to %s' % (zonecount, zone[0], zone[1])
-            upperleft, lowerright = zone[0], zone[1]
-            ullat, ullon = map(float, upperleft.split(','))
-            lrlat, lrlon = map(float, lowerright.split(','))
-            ulx, uly = self.latlontopixels(ullat, ullon, self.zoom)
-            lrx, lry = self.latlontopixels(lrlat, lrlon, self.zoom)
-            dx, dy = lrx - ulx, uly - lry
-            cols, rows = int(ceil(dx/640)), int(ceil(dy/400))
-            bottom = 120
-            largura = int(ceil(dx/cols))
-            altura = int(ceil(dy/rows))
-            alturaplus = altura + bottom
-            final = Image.new("RGB", (int(dx)*self.scale, int(dy)*self.scale))
-            p = 0
-            for x in range(cols):
-                for y in range(rows):
-                    p += 1
-                    dxn = largura * (0.5 + x)
-                    dyn = altura * (0.5 + y)
-                    latn, lonn = self.pixelstolatlon(ulx + dxn, uly - dyn - bottom/2, self.zoom)
-                    center = ('center', ','.join((str(latn), str(lonn))))
-                    size = ('size', '%dx%d' % (largura, alturaplus))
-                    sc = ('scale', str(self.scale))
-                    pars = [center, size, sc]
-                    url = 'http://maps.googleapis.com/maps/api/staticmap?' + '&'.join(['='.join(par) for par in pars + self.params])
-                    googleresp = urllib.urlopen(url)
-                    print googleresp.url
-                    imag = googleresp.read()
-                    im = Image.open(StringIO.StringIO(imag))
-                    final.paste(im, (int(x*largura*self.scale), int(y*altura*self.scale)))
-            zonename = 'zone_'+str(zonecount)
-            final.save(zonename+'.bmp')
-            del final
-            print '\n'
+        tilescount = 0
+        ullat_final, ullon_final = map(float, self.topleft)
+        lrlat_final, lrlon_final = map(float, self.bottomright)
+        ulx_final, uly_final = self.latlontopixels(ullat_final, ullon_final, self.zoom)
+        lrx_final, lry_final = self.latlontopixels(lrlat_final, lrlon_final, self.zoom)
+        dx_final, dy_final = lrx_final - ulx_final, uly_final - lry_final
+        largura_final = int(ceil(dx_final/self.zone_n[1]))
+        altura_final = int(ceil(dy_final/self.zone_n[0]))
+        final_img = Image.new("RGB", (int(dx_final)*self.scale, int(dy_final)*self.scale))
+        for zoney in range(self.zone_n[0]):
+            for zonex in range(self.zone_n[1]):
+                zone = self.zones[zoney][zonex]
+                zonecount += 1
+                print 'Processing Zone %d - from %s to %s' % (zonecount, zone[0], zone[1])
+                upperleft, lowerright = zone[0], zone[1]
+                ullat, ullon = map(float, upperleft)
+                lrlat, lrlon = map(float, lowerright)
+                ulx, uly = self.latlontopixels(ullat, ullon, self.zoom)
+                lrx, lry = self.latlontopixels(lrlat, lrlon, self.zoom)
+                dx, dy = lrx - ulx, uly - lry
+                cols, rows = int(ceil(dx/640)), int(ceil(dy/400))
+                bottom = 120
+                largura = int(ceil(dx/cols))
+                altura = int(ceil(dy/rows))
+                alturaplus = altura + bottom
+                zone_img = Image.new("RGB", (int(dx)*self.scale, int(dy)*self.scale))
+                p = 0
+                for x in range(cols):
+                    for y in range(rows):
+                        tilescount += 1
+                        p += 1
+                        print '%d ' % (p),
+                        dxn = largura * (0.5 + x)
+                        dyn = altura * (0.5 + y)
+                        latn, lonn = self.pixelstolatlon(ulx + dxn, uly - dyn - bottom/2, self.zoom)
+                        center = ('center', ','.join((str(latn), str(lonn))))
+                        size = ('size', '%dx%d' % (largura, alturaplus))
+                        sc = ('scale', str(self.scale))
+                        pars = [center, size, sc]
+                        url = 'http://maps.googleapis.com/maps/api/staticmap?' + '&'.join(['='.join(par) for par in pars + self.params])
+                        googleresp = urllib.urlopen(url)
+                        #print googleresp.code
+                        imag = googleresp.read()
+                        im = Image.open(StringIO.StringIO(imag))
+                        zone_img.paste(im, (int(x*largura*self.scale), int(y*altura*self.scale)))
+                print '\n'
+                print zonex, zoney, dx, dy
+                print zonex*dx*self.scale, zoney*dy*self.scale
+                final_img.paste(zone_img, (int(zonex*largura_final*self.scale), int(zoney*altura_final*self.scale)))
+                print 'Saving big map...'
+                final_img.save(self.name + '.png')
+                print 'Saved'
+                del zone_img
+                print '\n'
+        print '%d zones processed, %d tiles downloaded' % (zonecount, tilescount)
 
     def latlontopixels(self, lat, lon, zoom):
         mx = (lon * self.ORIGIN_SHIFT) / 180.0
@@ -101,7 +127,25 @@ class WorldMap(object):
         lon = (mx / self.ORIGIN_SHIFT) * 180.0
         return lat, lon
 
+styles = {'base': [('maptype', 'terrain'),
+                   ('style', 'element:labels|visibility:off'), 
+                   ('style', 'feature:administrative|visibility:off'), 
+                   ('style', 'feature:water|saturation:-85|invert_lightness:true'),
+                   ('style', 'feature:poi|visibility:off'),
+                   ('style', 'feature:landscape|element:geometry.fill|color:#ffffff'),
+                   ('style', 'feature:road|visibility:off')
+                   ],
+          'labels': [('maptype', 'roadmap'),
+                     ('style', 'feature:administrative|element:geometry|visibility:off'),
+                     ('style', 'feature:landscape|color:0xffffff'),
+                     ('style', 'feature:road|visibility:off'),
+                     ('style', 'feature:poi|visibility:off'),
+                     ('style', 'feature:water|color:0xffffff'),
+                     ]
+          }
+
 if __name__ == "__main__":
-    worldmap = WorldMap()
-    worldmap.get()
-    print 'Done'
+    for gmap, pars in styles.iteritems():
+        print gmap, pars
+        worldmap = WorldMap((74, -180), (-60, 180), gmap, pars, 6)
+        worldmap.get()
