@@ -5,6 +5,7 @@ from PIL import Image
 import StringIO
 from math import pi, log, tan, atan, exp, ceil
 from operator import sub, div
+from pprint import pprint
 
 
 def factors(n):
@@ -37,7 +38,7 @@ class WorldMap(object):
         self.bottomright = bottomright
         self.name = name
         self.params = [('zoom', str(zoom)), ('key', self.apikey)] + params
-        print self.params
+        pprint(params)
         self.zoom = zoom
         bigzone_delta = tuple(map(abs, map(sub, bottomright, topleft)))
         if min(bigzone_delta) > self.max_delta:
@@ -54,14 +55,6 @@ class WorldMap(object):
         print 'Starting image download'
         zonecount = 0
         tilescount = 0
-        ullat_final, ullon_final = map(float, self.topleft)
-        lrlat_final, lrlon_final = map(float, self.bottomright)
-        ulx_final, uly_final = self.latlontopixels(ullat_final, ullon_final, self.zoom)
-        lrx_final, lry_final = self.latlontopixels(lrlat_final, lrlon_final, self.zoom)
-        dx_final, dy_final = lrx_final - ulx_final, uly_final - lry_final
-        largura_final = int(ceil(dx_final/self.zone_n[1]))
-        altura_final = int(ceil(dy_final/self.zone_n[0]))
-        final_img = Image.new("RGB", (int(dx_final)*self.scale, int(dy_final)*self.scale))
         for zoney in range(self.zone_n[0]):
             for zonex in range(self.zone_n[1]):
                 zone = self.zones[zoney][zonex]
@@ -78,6 +71,11 @@ class WorldMap(object):
                 largura = int(ceil(dx/cols))
                 altura = int(ceil(dy/rows))
                 alturaplus = altura + bottom
+                if zonecount == 1:
+                    dx_final, dy_final = int(dx)*self.zone_n[1], int(dy)*self.zone_n[0]
+                    largura_final = int(dx_final/self.zone_n[1])
+                    altura_final = int(dy_final/self.zone_n[0])
+                    final_img = Image.new("RGB", (int(dx_final)*self.scale, int(dy_final)*self.scale))
                 zone_img = Image.new("RGB", (int(dx)*self.scale, int(dy)*self.scale))
                 p = 0
                 for x in range(cols):
@@ -94,13 +92,11 @@ class WorldMap(object):
                         pars = [center, size, sc]
                         url = 'http://maps.googleapis.com/maps/api/staticmap?' + '&'.join(['='.join(par) for par in pars + self.params])
                         googleresp = urllib.urlopen(url)
-                        #print googleresp.code
+                        print googleresp.code,
                         imag = googleresp.read()
                         im = Image.open(StringIO.StringIO(imag))
                         zone_img.paste(im, (int(x*largura*self.scale), int(y*altura*self.scale)))
                 print '\n'
-                print zonex, zoney, dx, dy
-                print zonex*dx*self.scale, zoney*dy*self.scale
                 final_img.paste(zone_img, (int(zonex*largura_final*self.scale), int(zoney*altura_final*self.scale)))
                 print 'Saving big map...'
                 final_img.save(self.name + '.png')
@@ -128,8 +124,8 @@ class WorldMap(object):
         return lat, lon
 
 styles = {'base': [('maptype', 'terrain'),
-                   ('style', 'element:labels|visibility:off'), 
-                   ('style', 'feature:administrative|visibility:off'), 
+                   ('style', 'element:labels|visibility:off'),
+                   ('style', 'feature:administrative|visibility:off'),
                    ('style', 'feature:water|saturation:-85|invert_lightness:true'),
                    ('style', 'feature:poi|visibility:off'),
                    ('style', 'feature:landscape|element:geometry.fill|color:#ffffff'),
@@ -146,6 +142,5 @@ styles = {'base': [('maptype', 'terrain'),
 
 if __name__ == "__main__":
     for gmap, pars in styles.iteritems():
-        print gmap, pars
         worldmap = WorldMap((74, -180), (-60, 180), gmap, pars, 6)
         worldmap.get()
