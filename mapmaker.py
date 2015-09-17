@@ -37,6 +37,7 @@ class WorldMap(object):
         self.topleft = topleft
         self.bottomright = bottomright
         self.name = name
+        print self.name
         self.params = [('zoom', str(zoom)), ('key', self.apikey)] + params
         pprint(params)
         self.zoom = zoom
@@ -98,11 +99,11 @@ class WorldMap(object):
                         zone_img.paste(im, (int(x*largura*self.scale), int(y*altura*self.scale)))
                 print '\n'
                 final_img.paste(zone_img, (int(zonex*largura_final*self.scale), int(zoney*altura_final*self.scale)))
-                print 'Saving big map...'
-                final_img.save(self.name + '.png')
-                print 'Saved'
                 del zone_img
                 print '\n'
+        print 'Saving big map...'
+        final_img.save(self.name + '.png')
+        print 'Saved'
         print '%d zones processed, %d tiles downloaded' % (zonecount, tilescount)
 
     def latlontopixels(self, lat, lon, zoom):
@@ -123,22 +124,42 @@ class WorldMap(object):
         lon = (mx / self.ORIGIN_SHIFT) * 180.0
         return lat, lon
 
-styles = {'base': [('maptype', 'terrain'),
-                   ('style', 'element:labels|visibility:off'),
-                   ('style', 'feature:administrative|visibility:off'),
-                   ('style', 'feature:water|saturation:-85|invert_lightness:true'),
-                   ('style', 'feature:poi|visibility:off'),
-                   ('style', 'feature:landscape|element:geometry.fill|color:#ffffff'),
-                   ('style', 'feature:road|visibility:off')
-                   ],
-          'labels': [('maptype', 'roadmap'),
-                     ('style', 'feature:administrative|element:geometry|visibility:off'),
-                     ('style', 'feature:landscape|color:0xffffff'),
-                     ('style', 'feature:road|visibility:off'),
-                     ('style', 'feature:poi|visibility:off'),
-                     ('style', 'feature:water|color:0xffffff'),
-                     ]
-          }
+styles = {
+          'borders': [('maptype', 'roadmap'),
+                      ('style', 'feature:landscape|color:0xffffff'),
+                      ('style', 'feature:water|color:0xffffff'),
+                      ('style', 'feature:administrative|element:labels|visibility:off'),
+                      ('style', 'feature:poi|visibility:off'),
+                      ('style', 'feature:road|visibility:off')
+                      ],
+          'terrain': [('maptype', 'terrain'),
+                      ('style', 'element:labels|visibility:off'),
+                      ('style', 'feature:administrative|visibility:off'),
+                      ('style', 'feature:water|color:#000000'),
+                      ('style', 'feature:poi|visibility:off'),
+                      ('style', 'feature:landscape|element:geometry.fill|color:#ffffff'),
+                      ('style', 'feature:road|visibility:off')
+                      ],
+          'labels':  [('maptype', 'roadmap'),
+                      ('style', 'feature:administrative|element:geometry|visibility:off'),
+                      ('style', 'feature:landscape|color:0xffffff'),
+                      ('style', 'feature:road|visibility:off'),
+                      ('style', 'feature:poi|visibility:off'),
+                      ('style', 'feature:water|color:0xffffff')
+                      ],
+          'water':   [('maptype', 'terrain'),
+                      ('style', 'feature:administrative|element:geometry|visibility:off'),
+                      ('style', 'feature:landscape|color:#000000'),
+                      ('style', 'feature:road|visibility:off'),
+                      ('style', 'feature:poi|visibility:off'),
+                      ('style', 'feature:water|element:labels|visibility:off')
+                      ],
+          'contrast':[('style', 'color:#000000'),
+                      ('style', 'element:labels|visibility:off'),
+                      ('style', 'feature:water|color:0xffffff')
+                      ]
+        }
+
 
 if __name__ == "__main__":
     for gmap, pars in styles.iteritems():
