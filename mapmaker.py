@@ -22,13 +22,18 @@ def closest(number, li):
 
 
 class WorldMap(object):
-    """docstring for WorldMap"""
+    """Styled GMap Object
+    ::topleft: tuple of coordinates
+    ::bottomright: tuple of coordinates
+    ::name: name of the style
+    ::params: Google Maps API style
+    ::zoom: well.. the map zoom"""
     EARTH_RADIUS = 6378137
     EQUATOR_CIRCUMFERENCE = 2 * pi * EARTH_RADIUS
     INITIAL_RESOLUTION = EQUATOR_CIRCUMFERENCE / 256.0
     ORIGIN_SHIFT = EQUATOR_CIRCUMFERENCE / 2.0
 
-    apikey = 'AIzaSyAoUzwHreNPC6pjDGqiHdF25d2q4QwV7M0'
+    apikey = 'I am an API key'
 
     max_delta = 45
 
@@ -37,9 +42,7 @@ class WorldMap(object):
         self.topleft = topleft
         self.bottomright = bottomright
         self.name = name
-        print self.name
         self.params = [('zoom', str(zoom)), ('key', self.apikey)] + params
-        pprint(params)
         self.zoom = zoom
         bigzone_delta = tuple(map(abs, map(sub, bottomright, topleft)))
         if min(bigzone_delta) > self.max_delta:
